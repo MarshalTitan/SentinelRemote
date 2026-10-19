@@ -1,0 +1,9 @@
+.dart_tool/
+.platform/
+flutter-sdk/
+build/
+candidate/
+*.jks
+*.keystore
+key.properties
+.idea/
