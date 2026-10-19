@@ -1,0 +1,55 @@
+name: Android proving build
+on:
+  push:
+    branches: [main, 'feature/android-*']
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: flutter/flutter
+          ref: '3.47.2'
+          path: flutter-sdk
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Prepare pinned Flutter Android platform
+        run: |
+          echo "$GITHUB_WORKSPACE/flutter-sdk/bin" >> "$GITHUB_PATH"
+          flutter-sdk/bin/flutter config --no-analytics
+          flutter-sdk/bin/flutter create --platforms=android --org dev.marshaltitan --project-name sentinel_remote .platform
+          python3 tool/prepare_android.py
+      - name: Resolve and inspect dependencies
+        working-directory: .platform
+        run: |
+          flutter pub get --enforce-lockfile
+          echo BEGIN_DEPENDENCY_LOCK
+          cat pubspec.lock
+          echo END_DEPENDENCY_LOCK
+      - name: Analyze app
+        working-directory: .platform
+        run: flutter analyze --no-pub
+      - name: Protocol and widget tests
+        working-directory: .platform
+        run: flutter test --no-pub
+      - name: Build signed debug APK for supervised proving
+        working-directory: .platform
+        run: flutter build apk --debug --no-pub
+      - name: Package Android candidate and dependency evidence
+        run: |
+          mkdir candidate
+          cp .platform/build/app/outputs/flutter-apk/app-debug.apk candidate/SentinelRemote-0.1.0-proving.apk
+          cp .platform/pubspec.lock candidate/pubspec.lock
+          sha256sum candidate/SentinelRemote-0.1.0-proving.apk > candidate/SHA256SUMS
+      - uses: actions/upload-artifact@v7
+        with:
+          name: SentinelRemote-Android-proving
+          path: candidate/
+          if-no-files-found: error
