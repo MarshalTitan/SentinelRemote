@@ -124,7 +124,9 @@ class _RemoteHomeState extends State<RemoteHome> with WidgetsBindingObserver {
         FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Forget'))]));
     if (yes != true) return;
     final hosts = _hosts.where((h) => h != host).toList();
-    await _vault.save(hosts); _viewEpoch++; _client?.disconnect();
+    try { await _vault.save(hosts); }
+    catch (_) { if (mounted) setState(() { _message = 'Secure storage is unavailable. The pairing was retained.'; }); return; }
+    _viewEpoch++; _client?.disconnect();
     if (!mounted) return;
     setState(() { _hosts = hosts; _client = null; _instances = []; _detail = null; _selected = null; _image = null; _message = 'Pairing removed.'; });
   }
@@ -155,6 +157,7 @@ class _RemoteHomeState extends State<RemoteHome> with WidgetsBindingObserver {
             })),
         if (detail != null) Card(child: Padding(padding: const EdgeInsets.all(18), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(detail['character'] as String? ?? 'Character unavailable', style: Theme.of(context).textTheme.titleLarge),
+          if (!ready) const Text('Last known values · Relay unavailable', style: TextStyle(color: Colors.orangeAccent)),
           const SizedBox(height: 12),
           _line('FFXIV', detail['processStatus']), _line('Relay', detail['relayStatus']),
           _line('World', detail['world']), _line('Map', detail['map']),

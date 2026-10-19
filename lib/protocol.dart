@@ -113,11 +113,10 @@ class RemoteClient {
     final reply = await transport.post(origin, '/remote/v1/pair',
       {'version': 1, 'invitation': invitation.trim()}, null);
     final data = reply['data'] as Map<String, dynamic>;
-    final provisional = PairedHost(label.trim(), origin, data['deviceId'] as String, data['deviceToken'] as String, '');
-    final client = RemoteClient(provisional, transport);
-    final ping = await client.request('session.ping');
-    client.disconnect();
-    return PairedHost(provisional.label, origin, provisional.deviceId, provisional.deviceToken, ping['hostId'] as String);
+    if (data['hostId'] is! String || (data['hostId'] as String).isEmpty) {
+      throw const RemoteFailure('protocol_mismatch');
+    }
+    return PairedHost(label.trim(), origin, data['deviceId'] as String, data['deviceToken'] as String, data['hostId'] as String);
   }
 
   Future<dynamic> request(String operation, {String? instance, String? confirmation}) {

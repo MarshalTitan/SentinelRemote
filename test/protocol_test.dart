@@ -7,7 +7,7 @@ class StubTransport implements JsonTransport {
   @override
   Future<Map<String, dynamic>> post(Uri origin, String path, Map<String, dynamic> body, String? credential) async {
     calls.add({'path': path, ...body, 'credential': credential});
-    if (path.endsWith('/pair')) return {'success': true, 'code': 'paired', 'data': {'deviceId': 'device', 'deviceToken': 'device-secret'}};
+    if (path.endsWith('/pair')) return {'success': true, 'code': 'paired', 'data': {'deviceId': 'device', 'deviceToken': 'device-secret', 'hostId': 'pc'}};
     if (path.endsWith('/session')) return {'success': true, 'code': 'session_opened', 'data': {'sessionToken': 'session-${calls.length}', 'protocolVersion': 1}};
     if (failNextMutation && body['operation'] == 'srank.skip') { failNextMutation = false; throw const RemoteFailure('connection_lost'); }
     return {'success': true, 'code': 'ok', 'data': {'hostId': 'pc'}};
