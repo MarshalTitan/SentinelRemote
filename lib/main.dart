@@ -141,9 +141,9 @@ class _RemoteHomeState extends State<RemoteHome> with WidgetsBindingObserver {
       body: SafeArea(child: ListView(padding: const EdgeInsets.all(18), children: [
         Text('YOUR CHARACTERS', style: Theme.of(context).textTheme.labelLarge?.copyWith(color: const Color(0xFFC7B1F6))),
         const SizedBox(height: 12),
-        if (_hosts.isNotEmpty) DropdownButtonFormField<PairedHost>(initialValue: _client?.host,
+        if (_hosts.isNotEmpty) DropdownButtonFormField<PairedHost>(initialValue: _client?.host, isExpanded: true,
           decoration: const InputDecoration(labelText: 'Paired PC', border: OutlineInputBorder()),
-          items: _hosts.map((h) => DropdownMenuItem(value: h, child: Text(h.label))).toList(),
+          items: _hosts.map((h) => DropdownMenuItem(value: h, child: Text(h.label, overflow: TextOverflow.ellipsis))).toList(),
           onChanged: _busy ? null : (host) { if (host != null) _chooseHost(host); }),
         const SizedBox(height: 12),
         Row(children: [Expanded(child: Text(_message)), IconButton(onPressed: _busy || _client == null ? null : _refresh, icon: const Icon(Icons.refresh), tooltip: 'Refresh')]),
