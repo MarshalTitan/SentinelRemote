@@ -39,7 +39,7 @@ class DesktopController extends ChangeNotifier {
       retry = Timer(Duration(seconds: seconds), () { if (wanted) connect(resetAttempts: false); });
     }
   }
-  void stop([String text = 'Desktop stopped. Tap Connect to resume.']) { wanted = false; attempts = 0; disconnect(text); }
+  void stop([String text = 'Desktop stopped. Tap Reconnect to resume.']) { wanted = false; attempts = 0; disconnect(text); }
   Future<void> connect({bool resetAttempts = true}) async {
     if (connecting || disposed) { return; }
     disconnect('Connecting to your PC…');
@@ -81,7 +81,7 @@ class DesktopController extends ChangeNotifier {
     } catch (error) {
       if (epoch == generation && !disposed) {
         final denied = error is RemoteFailure && (error.code == 'desktop_not_permitted' || error.code == 'unauthorized');
-        disconnect(denied ? 'In the PC app, select this phone and choose Trust selected phone once.' : 'Desktop unavailable. Check the PC and tap Connect.',
+        disconnect(denied ? 'In the PC app, select this phone and choose Trust selected phone once.' : 'Desktop unavailable. Check the PC and tap Reconnect.',
           reconnect: !denied);
       }
     }
@@ -252,10 +252,12 @@ class _DesktopPageState extends State<DesktopPage> with WidgetsBindingObserver {
       Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: Text(
         gameReady ? 'Gamepad ready · $character' : 'Gamepad appears when an approved character connects.',
         textAlign: TextAlign.center)),
-      Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-        FilledButton(onPressed: () => desktop.connect(), child: const Text('Connect')),
-        OutlinedButton(onPressed: desktop.stop, child: const Text('Stop desktop')),
-      ]),
+      ListenableBuilder(listenable: desktop, builder: (context, _) => Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+          if (!desktop.ready.value && !desktop.connecting)
+            FilledButton(onPressed: () => desktop.connect(), child: const Text('Reconnect')),
+          OutlinedButton(onPressed: desktop.stop, child: const Text('Stop desktop')),
+        ])),
       const SizedBox(height: 8),
     ])),
   );

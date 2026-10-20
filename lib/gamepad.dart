@@ -42,7 +42,7 @@ class _GamepadPageState extends State<GamepadPage> with WidgetsBindingObserver {
   int generation = 0, lastSequence = 0;
   final Stopwatch elapsed = Stopwatch()..start();
   int lastPollMs = 0;
-  String message = 'Allow this phone’s gamepad on the PC, then start here. PC 0.2.3 supports minimized play when FFXIV’s inactive-client gamepad setting is enabled.';
+  String message = 'Trust this phone once in the PC app, then start here. For minimized control, enable FFXIV’s inactive-client gamepad setting.';
   @override
   void initState() {
     super.initState(); WidgetsBinding.instance.addObserver(this); widget.viewReady?.addListener(viewChanged);
@@ -70,7 +70,7 @@ class _GamepadPageState extends State<GamepadPage> with WidgetsBindingObserver {
     if (active || connecting || !foreground || widget.viewReady?.value == false) return;
     final epoch = ++generation;
     pad.clear(); lastSequence = 0;
-    setState(() { connecting = true; message = 'Waiting for the PC’s gamepad permission and game…'; });
+    setState(() { connecting = true; message = 'Connecting the controller to your approved character…'; });
     try {
       final opened = await widget.client.openGamepad();
       if (!mounted || epoch != generation || !foreground) { opened.close(); return; }
@@ -94,12 +94,12 @@ class _GamepadPageState extends State<GamepadPage> with WidgetsBindingObserver {
           if (!active) setState(() { active = true; connecting = false; message = 'Gamepad active · Stop releases all controls'; });
         } catch (_) { stop('Controls released. Reopen controls and try again.'); }
       }, onDone: () {
-        if (epoch == generation) stop('Controls released. Check PC permission, one running game, unlocked Windows, and Tailscale; tap Start to try again.');
+        if (epoch == generation) stop('Controls released. Check trusted phone access, one running game, unlocked Windows, and Tailscale; tap Start to try again.');
       }, onError: (Object _) {
         if (epoch == generation) stop('Connection lost. Controls released; tap Start to reconnect.');
       }, cancelOnError: true);
     } catch (_) {
-      if (mounted && epoch == generation) stop('Could not start. Check the PC host and gamepad permission.');
+      if (mounted && epoch == generation) stop('Could not start. Check that the PC is connected and this phone is trusted.');
     }
   }
   @override
