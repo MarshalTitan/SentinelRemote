@@ -24,9 +24,11 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: RemoteHome(transport: transport)));
     await tester.pumpAndSettle();
     expect(transport.operations.where((v) => v['operation'] == 'launcher.open'), isEmpty);
-    final launch = find.widgetWithText(FilledButton, 'Open XIVLauncher');
+    final launch = find.ancestor(of: find.text('Open XIVLauncher'),
+      matching: find.byWidgetPredicate((widget) => widget is FilledButton)).first;
     expect(tester.widget<FilledButton>(launch).onPressed, isNotNull);
-    final gamepad = find.widgetWithText(FilledButton, 'Gamepad');
+    final gamepad = find.ancestor(of: find.text('Gamepad'),
+      matching: find.byWidgetPredicate((widget) => widget is FilledButton)).first;
     await tester.ensureVisible(gamepad);
     expect(tester.widget<FilledButton>(gamepad).onPressed, isNull);
     await tester.ensureVisible(launch);
