@@ -94,7 +94,7 @@ class _GamepadPageState extends State<GamepadPage> with WidgetsBindingObserver {
     closing = true; stop(''); elapsed.stop();
     WidgetsBinding.instance.removeObserver(this); super.dispose();
   }
-  Widget hold(String label, int bit) => Listener(
+  Widget hold(String label, int bit) => GestureDetector(onPanUpdate: (_) {}, child: Listener(
     onPointerDown: active ? (event) { setState(() { pad.held[event.pointer] = bit; }); } : null,
     onPointerUp: (event) { if (mounted) setState(() { pad.held.remove(event.pointer); }); },
     onPointerCancel: (event) { if (mounted) setState(() { pad.held.remove(event.pointer); }); },
@@ -102,7 +102,7 @@ class _GamepadPageState extends State<GamepadPage> with WidgetsBindingObserver {
       constraints: const BoxConstraints(minWidth: 60, minHeight: 50), alignment: Alignment.center,
       padding: const EdgeInsets.symmetric(horizontal: 10), margin: const EdgeInsets.all(3),
       decoration: BoxDecoration(color: !active ? Colors.white10 : pad.held.values.contains(bit) ? const Color(0xFF8862B8) : const Color(0xFF352743),
-        borderRadius: BorderRadius.circular(14)), child: Text(label, style: TextStyle(color: active ? Colors.white : Colors.white38)))));
+        borderRadius: BorderRadius.circular(14)), child: Text(label, style: TextStyle(color: active ? Colors.white : Colors.white38))))));
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: Text(widget.character, overflow: TextOverflow.ellipsis)),
@@ -154,7 +154,7 @@ class _TouchStickState extends State<TouchStick> {
   @override
   Widget build(BuildContext context) => Column(mainAxisSize: MainAxisSize.min, children: [
     Text(widget.label), const SizedBox(height: 8),
-    Listener(behavior: HitTestBehavior.opaque,
+    GestureDetector(onPanUpdate: (_) {}, child: Listener(behavior: HitTestBehavior.opaque,
       onPointerDown: (event) { if (!widget.enabled || pointer != null) return; pointer = event.pointer; update(event.localPosition); },
       onPointerMove: (event) { if (widget.enabled && pointer == event.pointer) update(event.localPosition); },
       onPointerUp: (event) { if (pointer == event.pointer) setState(release); },
@@ -163,6 +163,6 @@ class _TouchStickState extends State<TouchStick> {
         color: widget.enabled ? const Color(0xFF352743) : Colors.white10),
         child: Center(child: Transform.translate(offset: position * 45,
           child: Container(width: 46, height: 46, decoration: BoxDecoration(shape: BoxShape.circle,
-            color: widget.enabled ? const Color(0xFFAC8CF2) : Colors.white24)))))),
+            color: widget.enabled ? const Color(0xFFAC8CF2) : Colors.white24))))))),
   ]);
 }
