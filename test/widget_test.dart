@@ -16,6 +16,8 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
   testWidgets('launcher remains available with FFXIV exited and no connected Relay', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(900, 1600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
     FlutterSecureStorage.setMockInitialValues({'sentinel.hosts.v1': jsonEncode([{
       'label': 'Test PC', 'origin': 'https://pc.tail.ts.net', 'deviceId': 'device',
       'deviceToken': 'test-secret', 'hostId': 'pc'
