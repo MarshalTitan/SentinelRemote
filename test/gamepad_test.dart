@@ -1,7 +1,39 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sentinel_remote/gamepad.dart';
 import 'package:sentinel_remote/protocol.dart';
+
+class FakeSocket extends Stream<dynamic> implements WebSocket {
+  final events = StreamController<dynamic>();
+  final sent = <dynamic>[];
+  bool closed = false;
+  @override
+  StreamSubscription<dynamic> listen(void Function(dynamic)? onData, {Function? onError, void Function()? onDone, bool? cancelOnError}) =>
+    events.stream.listen(onData, onError: onError, onDone: onDone, cancelOnError: cancelOnError);
+  @override
+  void add(dynamic data) { sent.add(jsonDecode(data as String)); }
+  @override
+  Future<void> close([int? code, String? reason]) async { closed = true; await events.close(); }
+  void poll(int sequence) { if (!closed) events.add(jsonEncode({'version': 1, 'sequence': sequence, 'challenge': 'A' * 64})); }
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+class FakeClient extends RemoteClient {
+  final FakeSocket socket = FakeSocket();
+  int opened = 0;
+  FakeClient() : super(PairedHost('PC', Uri.parse('https://pc.tail.ts.net'), 'device', 'token', 'host'), UnusedTransport());
+  @override
+  Future<WebSocket> openGamepad() async { opened++; return socket; }
+}
+class UnusedTransport implements JsonTransport {
+  @override
+  Future<Map<String, dynamic>> post(Uri origin, String path, Map<String, dynamic> body, String? credential) async => {};
+  @override
+  void cancel() {}
+}
 
 void main() {
   final poll = {'version': 1, 'sequence': 1, 'challenge': 'A' * 64};
@@ -41,4 +73,33 @@ void main() {
     enabled = false; await tester.pumpWidget(build()); expect(x, 0); expect(y, 0);
     await second.up();
   });
+  testWidgets('background releases held touches, closes socket and never automatically reacquires', (tester) async {
+    final client = FakeClient();
+    await tester.pumpWidget(MaterialApp(home: GamepadPage(client: client, instance: 'one', character: 'Character')));
+    await tester.tap(find.text('Start gamepad')); await tester.pump();
+    client.socket.poll(1); await tester.pump();
+    final stick = find.byType(TouchStick).first;
+    final finger = await tester.startGesture(tester.getCenter(stick));
+    await finger.moveBy(const Offset(30, -20)); await tester.pump();
+    client.socket.poll(2); await tester.pump();
+    expect((client.socket.sent.last as Map)['leftX'], greaterThan(0));
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive); await tester.pump();
+    expect(client.socket.closed, isTrue);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed); await tester.pump();
+    expect(client.opened, 1);
+    expect(find.text('Start gamepad'), findsOneWidget);
+    await finger.up(); await tester.pumpWidget(const SizedBox.shrink());
+  });
+  testWidgets('preview fits narrow portrait and landscape with stop always reachable', (tester) async {
+    for (final size in [const Size(320, 640), const Size(740, 360)]) {
+      tester.view.physicalSize = size; tester.view.devicePixelRatio = 1;
+      await tester.pumpWidget(MaterialApp(home: GamepadPage(client: FakeClient(), instance: 'one', character: 'Character')));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(find.text('Stop gamepad').hitTestable(), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+    }
+    tester.view.resetPhysicalSize(); tester.view.resetDevicePixelRatio();
+  });
+
 }
