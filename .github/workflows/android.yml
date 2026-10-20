@@ -42,6 +42,19 @@ jobs:
       - name: Build signed debug APK for supervised proving
         working-directory: .platform
         run: flutter build apk --debug --no-pub
+      - name: Verify separate preview package and label
+        run: |
+          python3 - <<'PY'
+          import os
+          import subprocess
+          from pathlib import Path
+          tools = sorted(Path(os.environ['ANDROID_HOME']).glob('build-tools/*/aapt'))
+          assert tools, 'Android package inspection tool missing'
+          info = subprocess.check_output([str(tools[-1]), 'dump', 'badging', '.platform/build/app/outputs/flutter-apk/app-debug.apk'], text=True)
+          assert "package: name='dev.marshaltitan.sentinel_remote.gamepadpreview'" in info
+          assert "application-label:'Sentinel Remote Preview'" in info
+          print('Verified separate Sentinel Remote Preview package')
+          PY
       - name: Package Android candidate and dependency evidence
         run: |
           mkdir candidate

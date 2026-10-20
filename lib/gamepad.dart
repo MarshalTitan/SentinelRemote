@@ -99,7 +99,7 @@ class _GamepadPageState extends State<GamepadPage> with WidgetsBindingObserver {
     onPointerUp: (event) { if (mounted) setState(() { pad.held.remove(event.pointer); }); },
     onPointerCancel: (event) { if (mounted) setState(() { pad.held.remove(event.pointer); }); },
     child: Semantics(label: label, button: true, enabled: active, child: Container(
-      constraints: const BoxConstraints(minWidth: 60, minHeight: 50), alignment: Alignment.center,
+      width: 64, height: 54, alignment: Alignment.center,
       padding: const EdgeInsets.symmetric(horizontal: 10), margin: const EdgeInsets.all(3),
       decoration: BoxDecoration(color: !active ? Colors.white10 : pad.held.values.contains(bit) ? const Color(0xFF8862B8) : const Color(0xFF352743),
         borderRadius: BorderRadius.circular(14)), child: Text(label, style: TextStyle(color: active ? Colors.white : Colors.white38))))));
