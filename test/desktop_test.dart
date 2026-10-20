@@ -63,7 +63,7 @@ void main() {
     final client = DiscoveryClient();
     await tester.pumpWidget(MaterialApp(home: DesktopPage(client: client, character: 'Rescue gamepad')));
     await tester.pumpAndSettle();
-    IconButton button() => tester.widget<IconButton>(find.byTooltip('Gamepad with live view'));
+    IconButton button() => tester.widget<IconButton>(find.byWidgetPredicate((widget) => widget is IconButton && widget.tooltip == 'Gamepad with live view'));
     expect(button().onPressed, isNull);
     client.online = true;
     await tester.pump(const Duration(seconds: 5)); await tester.pumpAndSettle();
