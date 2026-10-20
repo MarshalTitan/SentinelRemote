@@ -42,4 +42,6 @@ class MainActivity: FlutterActivity() {
 ''')
 gradle = app / 'android/app/build.gradle.kts'
 text = gradle.read_text().replace('minSdk = flutter.minSdkVersion', 'minSdk = 24')
+# A separate private preview preserves the existing status/rescue app and its pairing.
+text = text.replace('applicationId = "dev.marshaltitan.sentinel_remote"', 'applicationId = "dev.marshaltitan.sentinel_remote.gamepadpreview"')
 gradle.write_text(text)

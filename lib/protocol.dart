@@ -151,5 +151,15 @@ class RemoteClient {
     });
     return result.future;
   }
+  Future<WebSocket> openGamepad() async {
+    final generation = _generation;
+    await request('session.ping');
+    if (generation != _generation || _session == null) throw const RemoteFailure('connection_lost');
+    final socket = await WebSocket.connect(host.origin.replace(scheme: 'wss', path: '/remote/v1/gamepad').toString(),
+      headers: {HttpHeaders.authorizationHeader: 'Bearer $_session'},
+      compression: CompressionOptions.compressionOff).timeout(const Duration(seconds: 8));
+    if (generation != _generation) { socket.close(); throw const RemoteFailure('connection_lost'); }
+    return socket;
+  }
   void disconnect() { _generation++; _session = null; _sequence = 0; transport.cancel(); }
 }

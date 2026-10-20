@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'protocol.dart';
 import 'vault.dart';
+import 'gamepad.dart';
 
 void main() { WidgetsFlutterBinding.ensureInitialized(); runApp(const SentinelRemoteApp()); }
 
@@ -35,13 +36,14 @@ class _RemoteHomeState extends State<RemoteHome> with WidgetsBindingObserver {
   String _message = 'Loading paired PCs…';
   bool _busy = false;
   bool _active = true;
+  bool _controlling = false;
   Timer? _timer;
   int _viewEpoch = 0;
   @override
   void initState() {
     super.initState(); WidgetsBinding.instance.addObserver(this);
     _load();
-    _timer = Timer.periodic(const Duration(seconds: 15), (_) { if (_active && !_busy && _client != null) { _refresh(); } });
+    _timer = Timer.periodic(const Duration(seconds: 15), (_) { if (_active && !_busy && !_controlling && _client != null) { _refresh(); } });
   }
   Future<void> _load() async {
     try {
@@ -57,7 +59,7 @@ class _RemoteHomeState extends State<RemoteHome> with WidgetsBindingObserver {
     if (!_active) {
       _viewEpoch++; _client?.disconnect();
       if (mounted) setState(() { _image = null; _detail = null; _message = 'Paused · reconnect when you return'; });
-    } else if (!_busy && _client != null) { _refresh(); }
+    } else if (!_busy && !_controlling && _client != null) { _refresh(); }
   }
   @override
   void dispose() { _timer?.cancel(); _client?.disconnect(); _transport.cancel(); WidgetsBinding.instance.removeObserver(this); super.dispose(); }
@@ -86,6 +88,14 @@ class _RemoteHomeState extends State<RemoteHome> with WidgetsBindingObserver {
   Future<void> _status(RemoteClient client, int epoch, String instance) async {
     final detail = await client.request('srank.status', instance: instance) as Map<String, dynamic>;
     if (_current(epoch) && _selected == instance) setState(() { _detail = detail; });
+  }
+  Future<void> _gamepad() async {
+    final client = _client; final instance = _selected;
+    if (client == null || instance == null || _busy || !_active) return;
+    setState(() { _controlling = true; });
+    await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => GamepadPage(
+      client: client, instance: instance, character: _detail?['character'] as String? ?? 'Gamepad')));
+    if (mounted) { setState(() { _controlling = false; }); if (_active) _refresh(); }
   }
   Future<void> _command(String operation) => _run((client, epoch) async {
     final instance = _selected; if (instance == null) return;
@@ -167,12 +177,13 @@ class _RemoteHomeState extends State<RemoteHome> with WidgetsBindingObserver {
         ]))),
         const SizedBox(height: 8),
         Wrap(spacing: 10, runSpacing: 10, children: [
+          FilledButton.tonalIcon(onPressed: _busy || !ready ? null : _gamepad, icon: const Icon(Icons.sports_esports), label: const Text('Gamepad')),
           FilledButton.tonalIcon(onPressed: _busy || !ready ? null : () => _command('screenshot'), icon: const Icon(Icons.photo_camera_outlined), label: const Text('Screenshot')),
           FilledButton.tonal(onPressed: _busy || !ready ? null : () => _command('srank.skip'), child: const Text('Skip + keep queue')),
           OutlinedButton(onPressed: _busy || !ready ? null : _reset, child: const Text('Stop + reset'))]),
         if (_image != null) Padding(padding: const EdgeInsets.only(top: 18), child: ClipRRect(borderRadius: BorderRadius.circular(16), child: Image.memory(_image!, gaplessPlayback: false,
           errorBuilder: (_, _, _) => const Text('Screenshot could not be displayed.')))),
-        const SizedBox(height: 24), const Text('Manual controls and live video will follow after status and rescue commands are proven.', style: TextStyle(color: Colors.white54)),
+        const SizedBox(height: 24), const Text('Gamepad controls are a preview requiring local PC permission. Live game view and launcher recovery follow later.', style: TextStyle(color: Colors.white54)),
       ])));
   }
   Widget _line(String label, dynamic value) => Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Row(crossAxisAlignment: CrossAxisAlignment.start,
