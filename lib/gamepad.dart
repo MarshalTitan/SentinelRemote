@@ -47,6 +47,10 @@ class _GamepadPageState extends State<GamepadPage> with WidgetsBindingObserver {
     foreground = state == AppLifecycleState.resumed;
     if (!foreground) stop('Controls released · tap Start again when ready.');
   }
+  @override
+  void didChangeMetrics() {
+    if (active || connecting) stop('Screen changed. Controls released; tap Start when ready.');
+  }
   void stop(String text) {
     generation++; watchdog?.cancel(); watchdog = null;
     pad.clear(); final current = socket; socket = null;
@@ -104,7 +108,9 @@ class _GamepadPageState extends State<GamepadPage> with WidgetsBindingObserver {
       decoration: BoxDecoration(color: !active ? Colors.white10 : pad.held.values.contains(bit) ? const Color(0xFF8862B8) : const Color(0xFF352743),
         borderRadius: BorderRadius.circular(14)), child: Text(label, style: TextStyle(color: active ? Colors.white : Colors.white38))))));
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => PopScope(
+    onPopInvokedWithResult: (didPop, result) { if (didPop) stop('Controls released.'); },
+    child: Scaffold(
     appBar: AppBar(title: Text(widget.character, overflow: TextOverflow.ellipsis)),
     body: SafeArea(child: Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Text(message, textAlign: TextAlign.center)),
@@ -128,7 +134,7 @@ class _GamepadPageState extends State<GamepadPage> with WidgetsBindingObserver {
         const Text('Gamepad mode must be enabled in FFXIV. Leaving this screen, locking the phone or losing the connection releases controls. Live game view follows in a later phase.',
           textAlign: TextAlign.center, style: TextStyle(color: Colors.white60)),
       ])))),
-    ])));
+    ]))));
 }
 
 class TouchStick extends StatefulWidget {
