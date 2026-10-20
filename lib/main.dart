@@ -104,11 +104,13 @@ class _RemoteHomeState extends State<RemoteHome> with WidgetsBindingObserver {
     await client.request('session.ping');
     if (!_current(epoch)) { return; }
     await client.request(operation, instance: instance);
-    if (_current(epoch)) setState(() {
-      _message = operation == 'launcher.open'
-        ? 'XIVLauncher is open or already running on the PC. Phone login-screen controls are still in development.'
-        : 'Game window restore requested. Refresh status or open Gamepad when your character is connected.';
-    });
+    if (_current(epoch)) {
+      setState(() {
+        _message = operation == 'launcher.open'
+          ? 'XIVLauncher is open or already running on the PC. Phone login-screen controls are still in development.'
+          : 'Game window restore requested. Refresh status or open Gamepad when your character is connected.';
+      });
+    }
   });
   Future<void> _command(String operation) => _run((client, epoch) async {
     final instance = _selected; if (instance == null) return;
