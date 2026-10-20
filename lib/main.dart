@@ -230,7 +230,7 @@ class _RemoteHomeState extends State<RemoteHome> with WidgetsBindingObserver {
 String _friendly(Object error) {
   if (error is! RemoteFailure) return 'The request could not be completed.';
   return switch (error.code) {
-    'connection_lost' => 'PC unreachable. Check Tailscale and the Remote host. Commands are not retried.',
+    'connection_lost' => 'PC unreachable. Check Tailscale and the PC app. Commands are not retried.',
     'unauthorized' => 'Session expired or this phone was revoked. Refresh or pair again locally.',
     'remote_disabled' => 'Remote access is disabled on this PC.',
     'bridge_unavailable' => 'PC connected · game bridge unavailable. Check the game and per-character mobile opt-in.',
@@ -249,7 +249,7 @@ String _friendly(Object error) {
     'pairing_rejected' => 'Invitation expired or already used. Create a fresh invitation on the PC.',
     'rate_limited' || 'cooldown' => 'Please wait before sending another request.',
     'invalid_private_https_url' => 'Enter the PC’s HTTPS Tailscale address ending in .ts.net.',
-    'invalid_pairing' => 'Enter a PC label and the complete 64-character invitation.',
+    'invalid_pairing' => 'Enter a PC name and the complete setup code. For an older PC version, use its address and 64-character invitation.',
     'protocol_mismatch' => 'Update the app and PC host to compatible versions.',
     'host_identity_changed' => 'PC identity changed. Revoke the old pairing and pair locally again.',
     _ => 'Request failed safely. Check the PC and refresh status.',
