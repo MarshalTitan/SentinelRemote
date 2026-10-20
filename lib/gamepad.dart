@@ -39,7 +39,7 @@ class _GamepadPageState extends State<GamepadPage> with WidgetsBindingObserver {
   int generation = 0, lastSequence = 0;
   final Stopwatch elapsed = Stopwatch()..start();
   int lastPollMs = 0;
-  String message = 'Allow this phone’s gamepad on the PC, then start here. Keep FFXIV in the foreground.';
+  String message = 'Allow this phone’s gamepad on the PC, then start here. PC 0.2.3 supports minimized play when FFXIV’s inactive-client gamepad setting is enabled.';
   @override
   void initState() { super.initState(); WidgetsBinding.instance.addObserver(this); }
   @override
@@ -85,7 +85,7 @@ class _GamepadPageState extends State<GamepadPage> with WidgetsBindingObserver {
           if (!active) setState(() { active = true; connecting = false; message = 'Gamepad active · Stop releases all controls'; });
         } catch (_) { stop('Controls released. Reopen controls and try again.'); }
       }, onDone: () {
-        if (epoch == generation) stop('Controls released. Check PC permission, one foreground game, and Tailscale; tap Start to try again.');
+        if (epoch == generation) stop('Controls released. Check PC permission, one running game, unlocked Windows, and Tailscale; tap Start to try again.');
       }, onError: (Object _) {
         if (epoch == generation) stop('Connection lost. Controls released; tap Start to reconnect.');
       }, cancelOnError: true);

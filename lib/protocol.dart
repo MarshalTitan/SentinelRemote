@@ -63,7 +63,9 @@ class PrivateHttpsTransport implements JsonTransport {
             'protocol_mismatch', 'instance_not_authorized', 'control_not_authorized',
             'replay_rejected', 'confirmation_rejected', 'bridge_unavailable',
             'state_unavailable', 'character_changed', 'plugin_disabled', 'operation_failed',
-            'screenshot_disabled', 'capture_failed', 'cooldown', 'ambiguous_client', 'process_exited'};
+            'screenshot_disabled', 'capture_failed', 'recovery_not_permitted', 'launcher_not_configured', 'launcher_changed',
+            'recovery_desktop_unavailable', 'game_already_running', 'game_window_unavailable',
+            'recovery_unavailable', 'recovery_failed', 'cooldown', 'ambiguous_client', 'process_exited'};
           throw RemoteFailure(safeCodes.contains(value['code']) ? value['code'] as String : 'operation_failed');
         }
         return value;

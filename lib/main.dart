@@ -20,13 +20,14 @@ class SentinelRemoteApp extends StatelessWidget {
 }
 
 class RemoteHome extends StatefulWidget {
-  const RemoteHome({super.key});
+  final JsonTransport? transport;
+  const RemoteHome({super.key, this.transport});
   @override
   State<RemoteHome> createState() => _RemoteHomeState();
 }
 class _RemoteHomeState extends State<RemoteHome> with WidgetsBindingObserver {
   final _vault = const HostVault();
-  final _transport = PrivateHttpsTransport();
+  late final JsonTransport _transport;
   List<PairedHost> _hosts = [];
   RemoteClient? _client;
   List<Map<String, dynamic>> _instances = [];
@@ -41,7 +42,7 @@ class _RemoteHomeState extends State<RemoteHome> with WidgetsBindingObserver {
   int _viewEpoch = 0;
   @override
   void initState() {
-    super.initState(); WidgetsBinding.instance.addObserver(this);
+    super.initState(); _transport = widget.transport ?? PrivateHttpsTransport(); WidgetsBinding.instance.addObserver(this);
     _load();
     _timer = Timer.periodic(const Duration(seconds: 15), (_) { if (_active && !_busy && !_controlling && _client != null) { _refresh(); } });
   }
@@ -97,6 +98,18 @@ class _RemoteHomeState extends State<RemoteHome> with WidgetsBindingObserver {
       client: client, instance: instance, character: _detail?['character'] as String? ?? 'Gamepad')));
     if (mounted) { setState(() { _controlling = false; }); if (_active) _refresh(); }
   }
+  Future<void> _recover(String operation) => _run((client, epoch) async {
+    final instance = operation == 'game.restore' ? _selected : null;
+    if (operation == 'game.restore' && instance == null) return;
+    await client.request('session.ping');
+    if (!_current(epoch)) return;
+    await client.request(operation, instance: instance);
+    if (_current(epoch)) setState(() {
+      _message = operation == 'launcher.open'
+        ? 'XIVLauncher is open or already running on the PC. Phone login-screen controls are still in development.'
+        : 'Game window restore requested. Refresh status or open Gamepad when your character is connected.';
+    });
+  });
   Future<void> _command(String operation) => _run((client, epoch) async {
     final instance = _selected; if (instance == null) return;
     final data = await client.request(operation, instance: instance);
@@ -158,6 +171,12 @@ class _RemoteHomeState extends State<RemoteHome> with WidgetsBindingObserver {
         const SizedBox(height: 12),
         Row(children: [Expanded(child: Text(_message)), IconButton(onPressed: _busy || _client == null ? null : _refresh, icon: const Icon(Icons.refresh), tooltip: 'Refresh')]),
         if (_busy) const LinearProgressIndicator(),
+        if (_client != null) Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Wrap(spacing: 10, runSpacing: 10, children: [
+          FilledButton.tonalIcon(onPressed: _busy ? null : () => _recover('launcher.open'),
+            icon: const Icon(Icons.launch), label: const Text('Open XIVLauncher')),
+          OutlinedButton(onPressed: _busy || _selected == null ? null : () => _recover('game.restore'),
+            child: const Text('Restore game window')),
+        ])),
         if (_instances.isEmpty && !_busy) Card(child: Padding(padding: const EdgeInsets.all(20), child: Text(_client == null ? 'Pair your PC with a one-time invitation created locally.' : 'No authorized game clients. Check the device grants on your PC.'))),
         for (final instance in _instances) Card(clipBehavior: Clip.antiAlias, color: _selected == instance['instanceId'] ? const Color(0xFF302641) : null,
           child: ListTile(leading: Icon(Icons.shield_outlined, color: _selected == instance['instanceId'] ? const Color(0xFFC9ABFF) : null),
@@ -183,7 +202,7 @@ class _RemoteHomeState extends State<RemoteHome> with WidgetsBindingObserver {
           OutlinedButton(onPressed: _busy || !ready ? null : _reset, child: const Text('Stop + reset'))]),
         if (_image != null) Padding(padding: const EdgeInsets.only(top: 18), child: ClipRRect(borderRadius: BorderRadius.circular(16), child: Image.memory(_image!, gaplessPlayback: false,
           errorBuilder: (_, _, _) => const Text('Screenshot could not be displayed.')))),
-        const SizedBox(height: 24), const Text('Gamepad controls are a preview requiring local PC permission. Live game view and launcher recovery follow later.', style: TextStyle(color: Colors.white54)),
+        const SizedBox(height: 24), const Text('Gamepad controls are a preview requiring local PC permission. Launcher opening needs separate local PC recovery permission. Login-screen view, character-selection controls and logout are still in development.', style: TextStyle(color: Colors.white54)),
       ])));
   }
   Widget _line(String label, dynamic value) => Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Row(crossAxisAlignment: CrossAxisAlignment.start,
@@ -197,7 +216,14 @@ String _friendly(Object error) {
     'unauthorized' => 'Session expired or this phone was revoked. Refresh or pair again locally.',
     'remote_disabled' => 'Remote access is disabled on this PC.',
     'bridge_unavailable' => 'PC connected · game bridge unavailable. Check the game and per-character mobile opt-in.',
-    'process_exited' => 'FFXIV has exited. Launcher recovery is not available in this build.',
+    'process_exited' => 'FFXIV has exited. Use Open XIVLauncher to start the locally configured launcher.',
+    'recovery_not_permitted' => 'On the PC, select this phone and click Allow selected phone recovery.',
+    'launcher_not_configured' || 'launcher_changed' => 'On the PC, choose the installed XIVLauncher.exe again before launching remotely.',
+    'recovery_desktop_unavailable' => 'Windows must be awake and unlocked in the same user session.',
+    'game_already_running' => 'FFXIV is already running. Use Restore game window or Gamepad for your connected character.',
+    'game_window_unavailable' => 'The game window is not available yet. Refresh status and try again.',
+    'recovery_unavailable' => 'Update the PC host to the recovery candidate and enable recovery locally.',
+    'recovery_failed' => 'The PC could not open the configured launcher or restore the window. Check it locally.',
     'ambiguous_client' => 'More than one game matched. Rebind the installation locally.',
     'control_not_authorized' => 'This phone has view permission. Enable control locally on the PC to use this action.',
     'screenshot_disabled' => 'Enable mobile screenshots for this character in Relay.',

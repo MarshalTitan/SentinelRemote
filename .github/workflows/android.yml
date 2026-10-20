@@ -58,9 +58,9 @@ jobs:
       - name: Package Android candidate and dependency evidence
         run: |
           mkdir candidate
-          cp .platform/build/app/outputs/flutter-apk/app-debug.apk candidate/SentinelRemote-0.2.0-gamepad-preview.apk
+          cp .platform/build/app/outputs/flutter-apk/app-debug.apk candidate/SentinelRemote-0.2.1-gamepad-preview.apk
           cp .platform/pubspec.lock candidate/pubspec.lock
-          sha256sum candidate/SentinelRemote-0.2.0-gamepad-preview.apk > candidate/SHA256SUMS
+          sha256sum candidate/SentinelRemote-0.2.1-gamepad-preview.apk > candidate/SHA256SUMS
       - uses: actions/upload-artifact@v7
         with:
           name: SentinelRemote-Android-gamepad-preview
