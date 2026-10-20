@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'protocol.dart';
 
 /// Local touch state only. It is never retried, persisted or automatically reacquired.
@@ -27,7 +28,9 @@ class GamepadPage extends StatefulWidget {
   final RemoteClient client;
   final String instance;
   final String character;
-  const GamepadPage({super.key, required this.client, required this.instance, required this.character});
+  final Widget? liveView;
+  final ValueListenable<bool>? viewReady;
+  const GamepadPage({super.key, required this.client, required this.instance, required this.character, this.liveView, this.viewReady});
   @override
   State<GamepadPage> createState() => _GamepadPageState();
 }
@@ -41,7 +44,10 @@ class _GamepadPageState extends State<GamepadPage> with WidgetsBindingObserver {
   int lastPollMs = 0;
   String message = 'Allow this phone’s gamepad on the PC, then start here. PC 0.2.3 supports minimized play when FFXIV’s inactive-client gamepad setting is enabled.';
   @override
-  void initState() { super.initState(); WidgetsBinding.instance.addObserver(this); }
+  void initState() { super.initState(); WidgetsBinding.instance.addObserver(this); widget.viewReady?.addListener(viewChanged); }
+  void viewChanged() {
+    if (widget.viewReady?.value == false && (active || connecting)) { stop('Desktop view stopped. Controls released.'); }
+  }
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     foreground = state == AppLifecycleState.resumed;
@@ -58,7 +64,7 @@ class _GamepadPageState extends State<GamepadPage> with WidgetsBindingObserver {
     if (mounted && !closing) setState(() { active = connecting = false; message = text; });
   }
   Future<void> start() async {
-    if (active || connecting || !foreground) return;
+    if (active || connecting || !foreground || widget.viewReady?.value == false) return;
     final epoch = ++generation;
     pad.clear(); lastSequence = 0;
     setState(() { connecting = true; message = 'Waiting for the PC’s gamepad permission and game…'; });
@@ -95,7 +101,7 @@ class _GamepadPageState extends State<GamepadPage> with WidgetsBindingObserver {
   }
   @override
   void dispose() {
-    closing = true; stop(''); elapsed.stop();
+    closing = true; widget.viewReady?.removeListener(viewChanged); stop(''); elapsed.stop();
     WidgetsBinding.instance.removeObserver(this); super.dispose();
   }
   Widget hold(String label, int bit) => GestureDetector(onPanUpdate: (_) {}, child: Listener(
@@ -107,34 +113,44 @@ class _GamepadPageState extends State<GamepadPage> with WidgetsBindingObserver {
       padding: const EdgeInsets.symmetric(horizontal: 10), margin: const EdgeInsets.all(3),
       decoration: BoxDecoration(color: !active ? Colors.white10 : pad.held.values.contains(bit) ? const Color(0xFF8862B8) : const Color(0xFF352743),
         borderRadius: BorderRadius.circular(14)), child: Text(label, style: TextStyle(color: active ? Colors.white : Colors.white38))))));
+  Widget controls() => SingleChildScrollView(child: Padding(padding: const EdgeInsets.all(12), child: Column(children: [
+    Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+      TouchStick(label: 'Move', enabled: active, onChanged: (x, y) { pad.lx = x; pad.ly = y; }),
+      TouchStick(label: 'Camera', enabled: active, onChanged: (x, y) { pad.rx = x; pad.ry = y; }),
+    ]),
+    const SizedBox(height: 12),
+    Wrap(alignment: WrapAlignment.center, children: [
+      hold('↑', 1), hold('↓', 2), hold('←', 4), hold('→', 8),
+      hold('A', 0x1000), hold('B', 0x2000), hold('X', 0x4000), hold('Y', 0x8000),
+      hold('LB', 0x100), hold('RB', 0x200), hold('LT', -1), hold('RT', -2),
+      hold('L3', 0x40), hold('R3', 0x80), hold('View', 0x20), hold('Menu', 0x10),
+    ]),
+    const SizedBox(height: 12),
+    const Text('Leaving controls, locking the phone or losing the connection releases the gamepad.',
+      textAlign: TextAlign.center, style: TextStyle(color: Colors.white60)),
+  ])));
   @override
   Widget build(BuildContext context) => PopScope(
     onPopInvokedWithResult: (didPop, result) { if (didPop) stop('Controls released.'); },
     child: Scaffold(
-    appBar: AppBar(title: Text(widget.character, overflow: TextOverflow.ellipsis)),
-    body: SafeArea(child: Column(children: [
-      Padding(padding: const EdgeInsets.all(12), child: Text(message, textAlign: TextAlign.center)),
-      Wrap(spacing: 12, children: [
-        FilledButton(onPressed: active || connecting ? null : start, child: const Text('Start gamepad')),
-        OutlinedButton(onPressed: () => stop('Controls released · tap Start to begin a new session.'), child: const Text('Stop gamepad')),
-      ]),
-      Expanded(child: SingleChildScrollView(child: Padding(padding: const EdgeInsets.all(12), child: Column(children: [
-        Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-          TouchStick(label: 'Move', enabled: active, onChanged: (x, y) { pad.lx = x; pad.ly = y; }),
-          TouchStick(label: 'Camera', enabled: active, onChanged: (x, y) { pad.rx = x; pad.ry = y; }),
+      appBar: AppBar(title: Text(widget.character, overflow: TextOverflow.ellipsis)),
+      body: SafeArea(child: Column(children: [
+        Padding(padding: const EdgeInsets.all(8), child: Text(widget.liveView == null ? message :
+          active ? 'Gamepad active · desktop remains visible' : 'Start gamepad after your character is connected.',
+          maxLines: 3, textAlign: TextAlign.center)),
+        Wrap(spacing: 12, children: [
+          FilledButton(onPressed: active || connecting ? null : start, child: const Text('Start gamepad')),
+          OutlinedButton(onPressed: () => stop('Controls released · tap Start to begin a new session.'), child: const Text('Stop gamepad')),
         ]),
-        const SizedBox(height: 12),
-        Wrap(alignment: WrapAlignment.center, children: [
-          hold('↑', 1), hold('↓', 2), hold('←', 4), hold('→', 8),
-          hold('A', 0x1000), hold('B', 0x2000), hold('X', 0x4000), hold('Y', 0x8000),
-          hold('LB', 0x100), hold('RB', 0x200), hold('LT', -1), hold('RT', -2),
-          hold('L3', 0x40), hold('R3', 0x80), hold('View', 0x20), hold('Menu', 0x10),
-        ]),
-        const SizedBox(height: 12),
-        const Text('Gamepad mode must be enabled in FFXIV. Leaving this screen, locking the phone or losing the connection releases controls. Live game view follows in a later phase.',
-          textAlign: TextAlign.center, style: TextStyle(color: Colors.white60)),
-      ])))),
-    ]))));
+        Expanded(child: widget.liveView == null ? controls() : LayoutBuilder(builder: (context, area) {
+          final view = Expanded(child: widget.liveView!);
+          final pad = Expanded(child: controls());
+          return area.maxWidth > area.maxHeight * 1.5
+            ? Row(children: [view, pad]) : Column(children: [view, pad]);
+        })),
+      ])),
+    ));
+
 }
 
 class TouchStick extends StatefulWidget {

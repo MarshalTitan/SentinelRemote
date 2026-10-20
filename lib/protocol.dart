@@ -153,15 +153,22 @@ class RemoteClient {
     });
     return result.future;
   }
-  Future<WebSocket> openGamepad() async {
+  Future<WebSocket> openDesktop() => _interactiveSocket('/remote/v1/desktop');
+  Future<WebSocket> _interactiveSocket(String path) async {
     final generation = _generation;
-    await request('session.ping');
-    if (generation != _generation || _session == null) throw const RemoteFailure('connection_lost');
-    final socket = await WebSocket.connect(host.origin.replace(scheme: 'wss', path: '/remote/v1/gamepad').toString(),
+    try { await request('session.ping'); }
+    on RemoteFailure catch (error) {
+      if (error.code != 'unauthorized' || generation != _generation) { rethrow; }
+      // Reauthenticate a read-only connection setup, never retry an input/action.
+      await request('session.ping');
+    }
+    if (generation != _generation || _session == null) { throw const RemoteFailure('connection_lost'); }
+    final socket = await WebSocket.connect(host.origin.replace(scheme: 'wss', path: path).toString(),
       headers: {HttpHeaders.authorizationHeader: 'Bearer $_session'},
       compression: CompressionOptions.compressionOff).timeout(const Duration(seconds: 8));
     if (generation != _generation) { socket.close(); throw const RemoteFailure('connection_lost'); }
     return socket;
   }
+  Future<WebSocket> openGamepad() => _interactiveSocket('/remote/v1/gamepad');
   void disconnect() { _generation++; _session = null; _sequence = 0; transport.cancel(); }
 }

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'protocol.dart';
 import 'vault.dart';
 import 'gamepad.dart';
+import 'desktop.dart';
 
 void main() { WidgetsFlutterBinding.ensureInitialized(); runApp(const SentinelRemoteApp()); }
 
@@ -90,6 +91,14 @@ class _RemoteHomeState extends State<RemoteHome> with WidgetsBindingObserver {
     final detail = await client.request('srank.status', instance: instance) as Map<String, dynamic>;
     if (_current(epoch) && _selected == instance) setState(() { _detail = detail; });
   }
+  Future<void> _desktop() async {
+    final client = _client;
+    if (client == null || _busy || !_active) { return; }
+    setState(() { _controlling = true; });
+    await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => DesktopPage(
+      client: client, instance: _selected, character: _detail?['character'] as String? ?? 'Rescue gamepad')));
+    if (mounted) { setState(() { _controlling = false; }); if (_active) { _refresh(); } }
+  }
   Future<void> _gamepad() async {
     final client = _client; final instance = _selected;
     if (client == null || instance == null || _busy || !_active) return;
@@ -107,7 +116,7 @@ class _RemoteHomeState extends State<RemoteHome> with WidgetsBindingObserver {
     if (_current(epoch)) {
       setState(() {
         _message = operation == 'launcher.open'
-          ? 'XIVLauncher is open or already running on the PC. Phone login-screen controls are still in development.'
+          ? 'XIVLauncher is open or already running on the PC. Open Desktop to use the launcher and choose your character.'
           : 'Game window restore requested. Refresh status or open Gamepad when your character is connected.';
       });
     }
@@ -174,6 +183,8 @@ class _RemoteHomeState extends State<RemoteHome> with WidgetsBindingObserver {
         Row(children: [Expanded(child: Text(_message)), IconButton(onPressed: _busy || _client == null ? null : _refresh, icon: const Icon(Icons.refresh), tooltip: 'Refresh')]),
         if (_busy) const LinearProgressIndicator(),
         if (_client != null) Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Wrap(spacing: 10, runSpacing: 10, children: [
+          FilledButton.icon(onPressed: _busy ? null : _desktop,
+            icon: const Icon(Icons.desktop_windows), label: const Text('Desktop')),
           FilledButton.tonalIcon(onPressed: _busy ? null : () => _recover('launcher.open'),
             icon: const Icon(Icons.launch), label: const Text('Open XIVLauncher')),
           OutlinedButton(onPressed: _busy || _selected == null ? null : () => _recover('game.restore'),
@@ -204,7 +215,7 @@ class _RemoteHomeState extends State<RemoteHome> with WidgetsBindingObserver {
           OutlinedButton(onPressed: _busy || !ready ? null : _reset, child: const Text('Stop + reset'))]),
         if (_image != null) Padding(padding: const EdgeInsets.only(top: 18), child: ClipRRect(borderRadius: BorderRadius.circular(16), child: Image.memory(_image!, gaplessPlayback: false,
           errorBuilder: (_, _, _) => const Text('Screenshot could not be displayed.')))),
-        const SizedBox(height: 24), const Text('Gamepad controls are a preview requiring local PC permission. Launcher opening needs separate local PC recovery permission. Login-screen view, character-selection controls and logout are still in development.', style: TextStyle(color: Colors.white54)),
+        const SizedBox(height: 24), const Text('Gamepad controls are a preview requiring local PC permission. Desktop mirrors the primary monitor with touch and keyboard control. Open apps and log in there; use its gamepad button after your character connects.', style: TextStyle(color: Colors.white54)),
       ])));
   }
   Widget _line(String label, dynamic value) => Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Row(crossAxisAlignment: CrossAxisAlignment.start,
