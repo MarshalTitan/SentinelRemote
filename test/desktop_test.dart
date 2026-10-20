@@ -41,6 +41,16 @@ class DesktopClient extends RemoteClient {
   @override
   Future<WebSocket> openDesktop() async { final socket = DesktopSocket(); sockets.add(socket); return socket; }
 }
+class DiscoveryClient extends DesktopClient {
+  bool online = false;
+  final reads = <String>[];
+  @override
+  Future<dynamic> read(String operation, {String? instance}) async {
+    reads.add(operation);
+    if (operation == 'instances.list') { return online ? [{'instanceId': 'one', 'label': 'Approved character'}] : []; }
+    return {'relayStatus': 'connected', 'character': 'Approved character'};
+  }
+}
 class UnusedDesktopTransport implements JsonTransport {
   @override
   Future<Map<String, dynamic>> post(Uri origin, String path, Map<String, dynamic> body, String? credential) async => {};
@@ -49,6 +59,33 @@ class UnusedDesktopTransport implements JsonTransport {
 }
 
 void main() {
+  testWidgets('desktop discovers a newly connected approved character without leaving the screen', (tester) async {
+    final client = DiscoveryClient();
+    await tester.pumpWidget(MaterialApp(home: DesktopPage(client: client, character: 'Rescue gamepad')));
+    await tester.pumpAndSettle();
+    IconButton button() => tester.widget<IconButton>(find.byTooltip('Gamepad with live view'));
+    expect(button().onPressed, isNull);
+    client.online = true;
+    await tester.pump(const Duration(seconds: 5)); await tester.pumpAndSettle();
+    expect(button().onPressed, isNotNull);
+    expect(find.text('Gamepad ready · Approved character'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+  testWidgets('returning to desktop resumes viewing but explicit Stop stays stopped', (tester) async {
+    final client = DiscoveryClient();
+    await tester.pumpWidget(MaterialApp(home: DesktopPage(client: client, character: 'Rescue gamepad')));
+    await tester.pumpAndSettle();
+    expect(client.sockets, hasLength(1));
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive); await tester.pump();
+    expect(client.sockets.first.closed, isTrue);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed); await tester.pumpAndSettle();
+    expect(client.sockets, hasLength(2));
+    await tester.tap(find.text('Stop desktop')); await tester.pumpAndSettle();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive); await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed); await tester.pumpAndSettle();
+    expect(client.sockets, hasLength(2));
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
   test('desktop starts without game state and sends a displayed-frame click exactly once', () async {
     final client = DesktopClient(); final desktop = DesktopController(client);
     await desktop.connect();

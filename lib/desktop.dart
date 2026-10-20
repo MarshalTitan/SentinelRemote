@@ -18,7 +18,7 @@ class DesktopController extends ChangeNotifier {
   String? frameId;
   int width = 1, height = 1, sequence = 0, generation = 0, received = 0, attempts = 0;
   bool connecting = false, framePending = false, actionPending = false, disposed = false, wanted = false;
-  String message = 'Connect to view and control the primary desktop.';
+  String message = 'Connecting to your trusted PC…';
   bool get fresh => ready.value && clock.elapsedMilliseconds - received < 1800;
   void changed() { if (!disposed) notifyListeners(); }
   void clearImage() {
@@ -33,9 +33,10 @@ class DesktopController extends ChangeNotifier {
     for (final request in pending.toList()) { if (!request.isCompleted) request.completeError(const RemoteFailure('connection_lost')); }
     pending.clear(); connecting = framePending = actionPending = false;
     clearImage(); message = text; changed();
-    if (reconnect && wanted && attempts < 3 && !disposed) {
-      attempts++;
-      retry = Timer(const Duration(milliseconds: 800), () { if (wanted) connect(resetAttempts: false); });
+    if (reconnect && wanted && !disposed) {
+      attempts = (attempts + 1).clamp(1, 6);
+      final seconds = [1, 2, 4, 8, 16, 30][attempts - 1];
+      retry = Timer(Duration(seconds: seconds), () { if (wanted) connect(resetAttempts: false); });
     }
   }
   void stop([String text = 'Desktop stopped. Tap Connect to resume.']) { wanted = false; attempts = 0; disconnect(text); }
@@ -80,7 +81,7 @@ class DesktopController extends ChangeNotifier {
     } catch (error) {
       if (epoch == generation && !disposed) {
         final denied = error is RemoteFailure && (error.code == 'desktop_not_permitted' || error.code == 'unauthorized');
-        disconnect(denied ? 'Allow this phone’s desktop access in the PC app, then tap Connect.' : 'Desktop unavailable. Check the PC and tap Connect.',
+        disconnect(denied ? 'In the PC app, select this phone and choose Trust selected phone once.' : 'Desktop unavailable. Check the PC and tap Connect.',
           reconnect: !denied);
       }
     }
@@ -171,30 +172,75 @@ class DesktopPage extends StatefulWidget {
 }
 class _DesktopPageState extends State<DesktopPage> with WidgetsBindingObserver {
   late final DesktopController desktop;
+  Timer? gameTimer;
+  String? instance;
+  late String character;
+  bool gameReady = false, checkingGame = false, inGamepad = false, active = true, resumeView = false;
+  int gameEpoch = 0;
   @override
-  void initState() { super.initState(); WidgetsBinding.instance.addObserver(this); desktop = DesktopController(widget.client); desktop.connect(); }
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed) { desktop.stop('Desktop paused. Tap Connect when you return.'); }
+  void initState() {
+    super.initState(); WidgetsBinding.instance.addObserver(this);
+    instance = widget.instance; character = widget.character;
+    desktop = DesktopController(widget.client); desktop.connect();
+    checkGame();
+    gameTimer = Timer.periodic(const Duration(seconds: 5), (_) { checkGame(); });
+  }
+  Future<void> checkGame() async {
+    if (!active || checkingGame || inGamepad || !mounted) { return; }
+    final epoch = gameEpoch;
+    setState(() { checkingGame = true; });
+    try {
+      final rows = ((await widget.client.read('instances.list')) as List).cast<Map<String, dynamic>>();
+      final next = rows.where((r) => r['instanceId'] == instance).firstOrNull ?? rows.firstOrNull;
+      final id = next?['instanceId'] as String?;
+      final detail = id == null ? null : await widget.client.read('srank.status', instance: id) as Map<String, dynamic>;
+      if (!mounted || !active || epoch != gameEpoch) { return; }
+      setState(() {
+        instance = id;
+        character = detail?['character'] as String? ?? next?['label'] as String? ?? widget.character;
+        gameReady = detail?['relayStatus'] == 'connected';
+      });
+    } catch (_) {
+      if (mounted && epoch == gameEpoch) { setState(() { gameReady = false; }); }
+    } finally {
+      if (mounted && epoch == gameEpoch) { setState(() { checkingGame = false; }); }
+    }
   }
   @override
-  void dispose() { WidgetsBinding.instance.removeObserver(this); desktop.dispose(); super.dispose(); }
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    active = state == AppLifecycleState.resumed;
+    if (!active) {
+      if (desktop.wanted) { resumeView = true; }
+      gameEpoch++; checkingGame = false;
+      desktop.stop('Desktop paused while the phone is in the background.');
+    } else {
+      if (resumeView) { resumeView = false; desktop.connect(); }
+      checkGame();
+    }
+  }
+  @override
+  void dispose() { gameEpoch++; gameTimer?.cancel(); WidgetsBinding.instance.removeObserver(this); desktop.dispose(); super.dispose(); }
   Future<void> keyboard() async {
     if (!desktop.fresh) { return; }
     final text = await showDialog<String>(context: context, builder: (_) => const DesktopTyping());
     if (text != null && text.isNotEmpty && mounted) { await desktop.act('text', text: text); }
   }
   Future<void> gamepad() async {
-    if (widget.instance == null || !desktop.fresh) { return; }
+    if (checkingGame || !desktop.fresh) { return; }
+    await checkGame();
+    if (!mounted || !active || !gameReady || instance == null || !desktop.fresh) { return; }
+    inGamepad = true;
     await Navigator.push<void>(context, MaterialPageRoute(builder: (_) => GamepadPage(
-      client: widget.client, instance: widget.instance!, character: widget.character,
+      client: widget.client, instance: instance!, character: character,
       liveView: DesktopSurface(controller: desktop), viewReady: desktop.ready)));
+    inGamepad = false;
+    if (mounted && active) { checkGame(); }
   }
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Desktop'), actions: [
       IconButton(onPressed: keyboard, icon: const Icon(Icons.keyboard), tooltip: 'Type on PC'),
-      IconButton(onPressed: widget.instance == null ? null : gamepad, icon: const Icon(Icons.sports_esports), tooltip: 'Gamepad with live view'),
+      IconButton(onPressed: !gameReady || checkingGame ? null : gamepad, icon: const Icon(Icons.sports_esports), tooltip: 'Gamepad with live view'),
     ]),
     body: SafeArea(child: Column(children: [
       Expanded(child: DesktopSurface(controller: desktop)),
@@ -203,6 +249,9 @@ class _DesktopPageState extends State<DesktopPage> with WidgetsBindingObserver {
           TextButton(onPressed: () => desktop.act('key', key: key), child: Text(key)),
       ])),
       ListenableBuilder(listenable: desktop, builder: (context, _) => Padding(padding: const EdgeInsets.all(8), child: Text(desktop.message, maxLines: 3, textAlign: TextAlign.center))),
+      Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: Text(
+        gameReady ? 'Gamepad ready · $character' : 'Gamepad appears when an approved character connects.',
+        textAlign: TextAlign.center)),
       Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
         FilledButton(onPressed: () => desktop.connect(), child: const Text('Connect')),
         OutlinedButton(onPressed: desktop.stop, child: const Text('Stop desktop')),

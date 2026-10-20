@@ -98,6 +98,25 @@ class PairedHost {
   // Intentionally no credential-bearing toString/diagnostic implementation.
 }
 
+class SetupCode {
+  final Uri origin;
+  final String invitation;
+  SetupCode._(this.origin, this.invitation);
+  static SetupCode parse(String input) {
+    try {
+      const prefix = 'sentinel-remote:1:';
+      final value = input.trim();
+      if (!value.startsWith(prefix) || value.length > 2048) { throw const RemoteFailure('invalid_pairing'); }
+      final decoded = utf8.decode(base64Url.decode(base64Url.normalize(value.substring(prefix.length))));
+      final fields = decoded.split('\n');
+      if (fields.length != 2 || !RegExp(r'^[0-9A-Fa-f]{64}$').hasMatch(fields[1])) {
+        throw const RemoteFailure('invalid_pairing');
+      }
+      return SetupCode._(remoteOrigin(fields[0]), fields[1]);
+    } catch (_) { throw const RemoteFailure('invalid_pairing'); }
+  }
+}
+
 class RemoteClient {
   final PairedHost host;
   final JsonTransport transport;
@@ -152,6 +171,18 @@ class RemoteClient {
       }
     });
     return result.future;
+  }
+  // Reconnect read-only requests after a host/session restart. Never replay input or mutations.
+  Future<dynamic> read(String operation, {String? instance}) async {
+    if (!{'session.ping', 'instances.list', 'srank.status'}.contains(operation)) {
+      throw const RemoteFailure('operation_not_allowed');
+    }
+    final generation = _generation;
+    try { return await request(operation, instance: instance); }
+    on RemoteFailure catch (error) {
+      if (error.code != 'unauthorized' || generation != _generation) { rethrow; }
+      return await request(operation, instance: instance);
+    }
   }
   Future<WebSocket> openDesktop() => _interactiveSocket('/remote/v1/desktop');
   Future<WebSocket> _interactiveSocket(String path) async {

@@ -50,9 +50,10 @@ class _RemoteHomeState extends State<RemoteHome> with WidgetsBindingObserver {
   Future<void> _load() async {
     try {
       final hosts = await _vault.load();
+      final preferred = await _vault.preferredHost();
       if (!mounted) return;
       setState(() { _hosts = hosts; _message = hosts.isEmpty ? 'Pair a PC to get started.' : 'Choose a paired PC.'; });
-      if (hosts.isNotEmpty) _chooseHost(hosts.first);
+      if (hosts.isNotEmpty) _chooseHost(hosts.where((h) => h.hostId == preferred).firstOrNull ?? hosts.first);
     } catch (_) { if (mounted) setState(() { _message = 'Secure storage is unavailable. Unlock the phone and reopen the app.'; }); }
   }
   @override
@@ -68,7 +69,11 @@ class _RemoteHomeState extends State<RemoteHome> with WidgetsBindingObserver {
   void _chooseHost(PairedHost host) {
     _viewEpoch++; _client?.disconnect();
     setState(() { _client = RemoteClient(host, _transport); _selected = null; _instances = []; _detail = null; _image = null; });
+    _rememberHost(host.hostId);
     _refresh();
+  }
+  Future<void> _rememberHost(String id) async {
+    try { await _vault.prefer(id); } catch (_) { /* Connection still works if the preference cannot be saved. */ }
   }
   Future<void> _run(Future<void> Function(RemoteClient, int) action) async {
     if (_busy || _client == null || !_active) return;
@@ -81,14 +86,14 @@ class _RemoteHomeState extends State<RemoteHome> with WidgetsBindingObserver {
   }
   bool _current(int epoch) => mounted && _active && epoch == _viewEpoch;
   Future<void> _refresh() => _run((client, epoch) async {
-    await client.request('session.ping');
-    final rows = ((await client.request('instances.list')) as List).cast<Map<String, dynamic>>();
+    await client.read('session.ping');
+    final rows = ((await client.read('instances.list')) as List).cast<Map<String, dynamic>>();
     if (!_current(epoch)) return;
-    setState(() { _instances = rows; _selected ??= rows.isEmpty ? null : rows.first['instanceId'] as String; _message = 'PC connected · updated ${TimeOfDay.now().format(context)}'; });
+    setState(() { _instances = rows; _selected = rows.any((r) => r['instanceId'] == _selected) ? _selected : rows.isEmpty ? null : rows.first['instanceId'] as String; _message = 'PC connected · updated ${TimeOfDay.now().format(context)}'; });
     if (_selected != null) await _status(client, epoch, _selected!);
   });
   Future<void> _status(RemoteClient client, int epoch, String instance) async {
-    final detail = await client.request('srank.status', instance: instance) as Map<String, dynamic>;
+    final detail = await client.read('srank.status', instance: instance) as Map<String, dynamic>;
     if (_current(epoch) && _selected == instance) setState(() { _detail = detail; });
   }
   Future<void> _desktop() async {
@@ -110,7 +115,7 @@ class _RemoteHomeState extends State<RemoteHome> with WidgetsBindingObserver {
   Future<void> _recover(String operation) => _run((client, epoch) async {
     final instance = operation == 'game.restore' ? _selected : null;
     if (operation == 'game.restore' && instance == null) return;
-    await client.request('session.ping');
+    await client.read('session.ping');
     if (!_current(epoch)) { return; }
     await client.request(operation, instance: instance);
     if (_current(epoch)) {
@@ -173,7 +178,7 @@ class _RemoteHomeState extends State<RemoteHome> with WidgetsBindingObserver {
       IconButton(onPressed: _busy ? null : _pair, icon: const Icon(Icons.add_link), tooltip: 'Pair a PC'),
       IconButton(onPressed: _busy || _client == null ? null : _forget, icon: const Icon(Icons.link_off), tooltip: 'Forget PC')]),
       body: SafeArea(child: ListView(padding: const EdgeInsets.all(18), children: [
-        Text('YOUR CHARACTERS', style: Theme.of(context).textTheme.labelLarge?.copyWith(color: const Color(0xFFC7B1F6))),
+        Text('YOUR PC', style: Theme.of(context).textTheme.labelLarge?.copyWith(color: const Color(0xFFC7B1F6))),
         const SizedBox(height: 12),
         if (_hosts.isNotEmpty) DropdownButtonFormField<PairedHost>(initialValue: _client?.host, isExpanded: true,
           decoration: const InputDecoration(labelText: 'Paired PC', border: OutlineInputBorder()),
@@ -190,7 +195,7 @@ class _RemoteHomeState extends State<RemoteHome> with WidgetsBindingObserver {
           OutlinedButton(onPressed: _busy || _selected == null ? null : () => _recover('game.restore'),
             child: const Text('Restore game window')),
         ])),
-        if (_instances.isEmpty && !_busy) Card(child: Padding(padding: const EdgeInsets.all(20), child: Text(_client == null ? 'Pair your PC with a one-time invitation created locally.' : 'No authorized game clients. Check the device grants on your PC.'))),
+        if (_instances.isEmpty && !_busy) Card(child: Padding(padding: const EdgeInsets.all(20), child: Text(_client == null ? 'Pair your PC with a one-time invitation created locally.' : 'Desktop is available without FFXIV. Approve a character once in the PC app to add game controls.'))),
         for (final instance in _instances) Card(clipBehavior: Clip.antiAlias, color: _selected == instance['instanceId'] ? const Color(0xFF302641) : null,
           child: ListTile(leading: Icon(Icons.shield_outlined, color: _selected == instance['instanceId'] ? const Color(0xFFC9ABFF) : null),
             title: Text(instance['label'] as String), subtitle: Text(_selected == instance['instanceId'] && ready ? 'Relay connected' : 'Select to check status'),
@@ -215,7 +220,7 @@ class _RemoteHomeState extends State<RemoteHome> with WidgetsBindingObserver {
           OutlinedButton(onPressed: _busy || !ready ? null : _reset, child: const Text('Stop + reset'))]),
         if (_image != null) Padding(padding: const EdgeInsets.only(top: 18), child: ClipRRect(borderRadius: BorderRadius.circular(16), child: Image.memory(_image!, gaplessPlayback: false,
           errorBuilder: (_, _, _) => const Text('Screenshot could not be displayed.')))),
-        const SizedBox(height: 24), const Text('Gamepad controls are a preview requiring local PC permission. Desktop mirrors the primary monitor with touch and keyboard control. Open apps and log in there; use its gamepad button after your character connects.', style: TextStyle(color: Colors.white54)),
+        const SizedBox(height: 24), const Text('Keep Tailscale connected on both devices. Trust this phone once in the PC app; access is remembered. Open Desktop to use apps and log in, then use its gamepad button when the character connects.', style: TextStyle(color: Colors.white54)),
       ])));
   }
   Widget _line(String label, dynamic value) => Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Row(crossAxisAlignment: CrossAxisAlignment.start,
@@ -230,7 +235,7 @@ String _friendly(Object error) {
     'remote_disabled' => 'Remote access is disabled on this PC.',
     'bridge_unavailable' => 'PC connected · game bridge unavailable. Check the game and per-character mobile opt-in.',
     'process_exited' => 'FFXIV has exited. Use Open XIVLauncher to start the locally configured launcher.',
-    'recovery_not_permitted' => 'On the PC, select this phone and click Allow selected phone recovery.',
+    'recovery_not_permitted' => 'On the PC, select this phone and click Trust selected phone once.',
     'launcher_not_configured' || 'launcher_changed' => 'On the PC, choose the installed XIVLauncher.exe again before launching remotely.',
     'recovery_desktop_unavailable' => 'Windows must be awake and unlocked in the same user session.',
     'game_already_running' => 'FFXIV is already running. Use Restore game window or Gamepad for your connected character.',
@@ -258,27 +263,37 @@ class PairDialog extends StatefulWidget {
   State<PairDialog> createState() => _PairDialogState();
 }
 class _PairDialogState extends State<PairDialog> {
-  final _url = TextEditingController(); final _label = TextEditingController(); final _invite = TextEditingController();
-  bool _busy = false; String? _error;
+  final _code = TextEditingController();
+  final _url = TextEditingController(); final _label = TextEditingController(text: 'My PC'); final _invite = TextEditingController();
+  bool _busy = false, _manual = false; String? _error;
   @override
-  void dispose() { _url.dispose(); _label.dispose(); _invite.clear(); _invite.dispose(); super.dispose(); }
+  void dispose() { _code.clear(); _code.dispose(); _url.dispose(); _label.dispose(); _invite.clear(); _invite.dispose(); super.dispose(); }
   @override
-  Widget build(BuildContext context) => PopScope(canPop: !_busy, child: AlertDialog(title: const Text('Pair your PC'),
+  Widget build(BuildContext context) => PopScope(canPop: !_busy, child: AlertDialog(title: const Text('Pair your PC once'),
     content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-      const Text('Use the private HTTPS address and one-time invitation shown on your PC.'), const SizedBox(height: 16),
-      TextField(controller: _label, enabled: !_busy, maxLength: 64, decoration: const InputDecoration(labelText: 'PC label')),
-      TextField(controller: _url, enabled: !_busy, autocorrect: false, enableSuggestions: false, keyboardType: TextInputType.url,
-        decoration: const InputDecoration(labelText: 'https://your-pc.tailnet.ts.net')),
-      TextField(controller: _invite, enabled: !_busy, obscureText: true, autocorrect: false, enableSuggestions: false,
-        decoration: const InputDecoration(labelText: 'One-time invitation')),
+      const Text('Keep Tailscale connected on both devices. In the PC app, choose Pair a phone and paste its setup code here. Your phone will remember the connection.'), const SizedBox(height: 16),
+      TextField(controller: _label, enabled: !_busy, maxLength: 64, decoration: const InputDecoration(labelText: 'PC name')),
+      if (!_manual) TextField(controller: _code, enabled: !_busy, obscureText: true, maxLength: 2048,
+        autocorrect: false, enableSuggestions: false, autofillHints: const [],
+        decoration: const InputDecoration(labelText: 'Setup code from PC')),
+      if (_manual) ...[
+        TextField(controller: _url, enabled: !_busy, autocorrect: false, enableSuggestions: false, keyboardType: TextInputType.url,
+          decoration: const InputDecoration(labelText: 'https://your-pc.tailnet.ts.net')),
+        TextField(controller: _invite, enabled: !_busy, obscureText: true, autocorrect: false, enableSuggestions: false,
+          decoration: const InputDecoration(labelText: 'One-time invitation')),
+      ],
+      TextButton(onPressed: _busy ? null : () => setState(() { _manual = !_manual; _code.clear(); _invite.clear(); _error = null; }),
+        child: Text(_manual ? 'Use a setup code' : 'Older PC version? Enter address and invitation')),
       if (_error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(_error!, style: const TextStyle(color: Colors.orangeAccent))),
       if (_busy) const LinearProgressIndicator(),
     ])), actions: [TextButton(onPressed: _busy ? null : () => Navigator.pop(context), child: const Text('Cancel')),
       FilledButton(onPressed: _busy ? null : () async {
         setState(() { _busy = true; _error = null; });
         try {
-          final host = await RemoteClient.pair(widget.transport, _url.text, _label.text, _invite.text);
+          final setup = _manual ? null : SetupCode.parse(_code.text);
+          final host = await RemoteClient.pair(widget.transport, setup?.origin.toString() ?? _url.text, _label.text, setup?.invitation ?? _invite.text);
+          _code.clear(); _invite.clear();
           if (context.mounted) Navigator.pop(context, host);
-        } catch (e) { if (mounted) setState(() { _busy = false; _invite.clear(); _error = _friendly(e); }); }
+        } catch (e) { if (mounted) setState(() { _busy = false; _code.clear(); _invite.clear(); _error = _friendly(e); }); }
       }, child: const Text('Pair'))]));
 }
