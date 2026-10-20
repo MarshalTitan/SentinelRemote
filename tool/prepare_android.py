@@ -18,7 +18,7 @@ if (root / 'pubspec.lock').exists():
 manifest = app / 'android/app/src/main/AndroidManifest.xml'
 text = manifest.read_text()
 text = text.replace('<application', '<uses-permission android:name="android.permission.INTERNET"/>\n    <application android:allowBackup="false" android:usesCleartextTraffic="false"')
-text = text.replace('android:label="sentinel_remote"', 'android:label="Sentinel Remote"')
+text = text.replace('android:label="sentinel_remote"', 'android:label="Sentinel Remote Preview"')
 text = text.replace('android:icon="@mipmap/ic_launcher"', 'android:icon="@drawable/sentinel_icon"')
 manifest.write_text(text)
 icon = app / 'android/app/src/main/res/drawable/sentinel_icon.xml'
@@ -42,4 +42,7 @@ class MainActivity: FlutterActivity() {
 ''')
 gradle = app / 'android/app/build.gradle.kts'
 text = gradle.read_text().replace('minSdk = flutter.minSdkVersion', 'minSdk = 24')
+# A separate private preview preserves the existing status/rescue app and its pairing.
+text = text.replace('applicationId = "dev.marshaltitan.sentinel_remote"', 'applicationId = "dev.marshaltitan.sentinel_remote.gamepadpreview"')
+assert 'applicationId = "dev.marshaltitan.sentinel_remote.gamepadpreview"' in text, 'Preview must keep a separate app identity'
 gradle.write_text(text)

@@ -1,37 +1,13 @@
-# Sentinel Remote
+# Sentinel Remote — remembered setup preview 0.4.0
 
-Android-first companion for the privately paired Sentinel Relay PCs. This candidate provides secure pairing, a PC/client selector, status, screenshot requests and existing SRank rescue operations with explicit reset confirmation. All game operations require the matching optional PC host and an opted-in Relay plugin bridge. Manual sticks/buttons, live video and launcher recovery are later stages.
+Android companion for private PC desktop access and a small rescue gamepad. Keep Tailscale installed and connected on both devices; no separate Sentinel account is introduced.
 
-## Build
+Use Windows **0.4.0** and [current setup instructions](https://github.com/MarshalTitan/SentinelRelay/blob/feature/sentinel-remote-gamepad-integration/remote/docs/DESKTOP_MIRROR.md). Existing control phones need **Trust selected phone** once. New phones paste one PC setup code; a visible local trust approval is saved across PC restarts. Controller support prepares automatically. The signed USBip driver remains a one-time PC prerequisite.
 
-The CI workflow pins Flutter 3.47.2 and generates the standard Android platform shell into `.platform`, then applies the reviewed application source and minimal platform configuration. This keeps generated Gradle wrappers/assets reproducible without committing binaries. Requires Flutter, Python 3, Java 17 and an Android SDK.
+The app remembers the last selected PC and renews read-only sessions after host restarts. Desktop works before FFXIV opens: touch opens ordinary apps/files, keyboard typing operates launcher login and character selection. Desktop checks for approved characters and enables its gamepad icon once Relay connects, without returning Home. Gamepad acquisition always needs a tap. Portrait and landscape combine screen and controls.
 
-```sh
-flutter create --platforms=android --org dev.marshaltitan --project-name sentinel_remote .platform
-python3 tool/prepare_android.py
-cd .platform
-flutter pub get
-flutter analyze
-flutter test
-flutter build apk --debug
-```
+Returning from background resumes viewing; explicit Stop stays stopped. Network/view recovery uses bounded backoff and clears old actions. No mouse/key/text/rescue action is automatically replayed, and gamepad never reacquires automatically. PC Pause removes remembered full-PC trust; Revoke removes the phone credential; Disable all access prevents automatic host resume.
 
-`Android proving build` uploads a signed **debug** APK, dependency lock and SHA-256 checksum. This is a supervised installation candidate, not a store/production release. CI's temporary debug signing identity can change between runs; a later candidate may need uninstall/reinstall and fresh pairing until a stable private release signing key is configured. Never commit a signing key or key.properties. Android minimum API is 24. iOS packaging remains deferred.
+The preview uses the primary monitor, at most 3 FPS/1280×720/320 KiB JPEG, with recent displayed-frame IDs, socket sequences and complete input batches. No disk recording, clipboard sync, generic remote shell/filesystem API or stored typed credentials. Windows must be awake/unlocked. Real launcher login, full view+pad handoff, restart/pause behavior and monitor-off rendering still require field acceptance. Basic monitor viewing/touch positioning and earlier native movement/camera were user-confirmed.
 
-## Security
-
-- HTTPS tailnet origins ending `.ts.net` only, normal certificate validation, no redirects or URL credentials.
-- PC device credential stored using pinned `flutter_secure_storage` 10.3.4 (BSD-3-Clause). Session tokens and reset confirmation values remain in memory.
-- Android backup and cleartext traffic disabled; secure-window flag prevents screenshots/task-switcher previews of the app.
-- Per-PC HostId binding, monotonic per-session sequences and serialized requests; no automatic retry of skip/reset after an uncertain response.
-- Backgrounding closes network connections, drops sessions and clears displayed screenshot/status. Returning refreshes status; it does not reissue a game command.
-- Removing a PC erases the phone's saved credential; also revoke that device locally on the PC. Pairing invitations expire after two minutes and are never saved by the app.
-- The app has no arbitrary chat, process, shell, filesystem, mouse/keyboard or desktop-control feature.
-
-## First proving session
-
-Use the matching SentinelRelay bridge/host candidate and follow its setup checklist. Pair using the PC's private HTTPS address and local invitation; confirm both client labels map to the correct characters, then test status, screenshots, skip and reset confirmation. Test revocation, local disable, game logout/switch and network interruption. Unknown status fields stay unknown. The application must not be treated as an unattended recovery tool before supervised acceptance.
-
-The full [Milestone A installation and test checklist](https://github.com/MarshalTitan/SentinelRelay/blob/main/remote/docs/MILESTONE_A.md) includes the matched plugin/host downloads, per-character opt-ins, local process binding and one consolidated set of checks.
-
-Flutter and platform dependency licenses are available in the framework/package notices; app dependency versions are retained in CI's pubspec.lock. No source from AGPL remote-desktop/controller tools is copied. App source is MIT licensed.
+**Sentinel Remote Preview** remains a separate Android application ID. CI debug signing is temporary: if Android rejects an update, uninstall only Preview, install the new APK and re-pair. Stable signing and iPhone distribution remain separate work.

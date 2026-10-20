@@ -1,14 +1,16 @@
+import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sentinel_remote/protocol.dart';
 
 class StubTransport implements JsonTransport {
   final calls = <Map<String, dynamic>>[];
-  bool failNextMutation = false;
+  bool failNextMutation = false, expireNextRead = false;
   @override
   Future<Map<String, dynamic>> post(Uri origin, String path, Map<String, dynamic> body, String? credential) async {
     calls.add({'path': path, ...body, 'credential': credential});
     if (path.endsWith('/pair')) return {'success': true, 'code': 'paired', 'data': {'deviceId': 'device', 'deviceToken': 'device-secret', 'hostId': 'pc'}};
     if (path.endsWith('/session')) return {'success': true, 'code': 'session_opened', 'data': {'sessionToken': 'session-${calls.length}', 'protocolVersion': 1}};
+    if (expireNextRead && body['operation'] == 'session.ping') { expireNextRead = false; throw const RemoteFailure('unauthorized'); }
     if (failNextMutation && body['operation'] == 'srank.skip') { failNextMutation = false; throw const RemoteFailure('connection_lost'); }
     return {'success': true, 'code': 'ok', 'data': {'hostId': 'pc'}};
   }
@@ -18,6 +20,26 @@ class StubTransport implements JsonTransport {
 
 void main() {
   final host = PairedHost('PC', Uri.parse('https://pc.tail.ts.net'), 'device', 'device-secret', 'pc');
+  test('single setup code carries only a private origin and one-time invitation', () {
+    String code(String origin, String invitation) => 'sentinel-remote:1:${base64Url.encode(utf8.encode('$origin\n$invitation')).replaceAll('=', '')}';
+    final invitation = 'A' * 64;
+    final parsed = SetupCode.parse(code('https://pc.tail.ts.net', invitation));
+    expect(parsed.origin.toString(), 'https://pc.tail.ts.net');
+    expect(parsed.invitation, invitation);
+    for (final bad in [code('http://pc.tail.ts.net', invitation), code('https://example.com', invitation),
+      code('https://pc.tail.ts.net', 'bad'), code('https://pc.tail.ts.net/path', invitation), 'sentinel-remote:2:bad', 'broken']) {
+      expect(() => SetupCode.parse(bad), throwsA(isA<RemoteFailure>()));
+    }
+  });
+  test('read-only refresh reauthenticates once; mutations cannot use automatic read recovery', () async {
+    final transport = StubTransport()..expireNextRead = true;
+    final client = RemoteClient(host, transport);
+    await client.read('session.ping');
+    expect(transport.calls.where((v) => v['path'] == '/remote/v1/session').length, 2);
+    expect(transport.calls.where((v) => v['operation'] == 'session.ping').length, 2);
+    await expectLater(client.read('srank.skip', instance: 'one'), throwsA(isA<RemoteFailure>()));
+    expect(transport.calls.where((v) => v['operation'] == 'srank.skip'), isEmpty);
+  });
   test('private HTTPS origin only, no URL secrets or alternate ports', () {
     for (final bad in ['http://pc.tail.ts.net', 'https://example.com', 'https://u:p@pc.tail.ts.net',
       'https://pc.tail.ts.net?token=x', 'https://pc.tail.ts.net#x', 'https://pc.tail.ts.net/path', 'https://pc.tail.ts.net:8443']) {

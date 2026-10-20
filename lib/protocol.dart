@@ -63,7 +63,9 @@ class PrivateHttpsTransport implements JsonTransport {
             'protocol_mismatch', 'instance_not_authorized', 'control_not_authorized',
             'replay_rejected', 'confirmation_rejected', 'bridge_unavailable',
             'state_unavailable', 'character_changed', 'plugin_disabled', 'operation_failed',
-            'screenshot_disabled', 'capture_failed', 'cooldown', 'ambiguous_client', 'process_exited'};
+            'screenshot_disabled', 'capture_failed', 'recovery_not_permitted', 'launcher_not_configured', 'launcher_changed',
+            'recovery_desktop_unavailable', 'game_already_running', 'game_window_unavailable',
+            'recovery_unavailable', 'recovery_failed', 'cooldown', 'ambiguous_client', 'process_exited'};
           throw RemoteFailure(safeCodes.contains(value['code']) ? value['code'] as String : 'operation_failed');
         }
         return value;
@@ -94,6 +96,25 @@ class PairedHost {
     json['label'] as String, remoteOrigin(json['origin'] as String),
     json['deviceId'] as String, json['deviceToken'] as String, json['hostId'] as String);
   // Intentionally no credential-bearing toString/diagnostic implementation.
+}
+
+class SetupCode {
+  final Uri origin;
+  final String invitation;
+  SetupCode._(this.origin, this.invitation);
+  static SetupCode parse(String input) {
+    try {
+      const prefix = 'sentinel-remote:1:';
+      final value = input.trim();
+      if (!value.startsWith(prefix) || value.length > 2048) { throw const RemoteFailure('invalid_pairing'); }
+      final decoded = utf8.decode(base64Url.decode(base64Url.normalize(value.substring(prefix.length))));
+      final fields = decoded.split('\n');
+      if (fields.length != 2 || !RegExp(r'^[0-9A-Fa-f]{64}$').hasMatch(fields[1])) {
+        throw const RemoteFailure('invalid_pairing');
+      }
+      return SetupCode._(remoteOrigin(fields[0]), fields[1]);
+    } catch (_) { throw const RemoteFailure('invalid_pairing'); }
+  }
 }
 
 class RemoteClient {
@@ -151,5 +172,34 @@ class RemoteClient {
     });
     return result.future;
   }
+  // Reconnect read-only requests after a host/session restart. Never replay input or mutations.
+  Future<dynamic> read(String operation, {String? instance}) async {
+    if (!{'session.ping', 'instances.list', 'srank.status'}.contains(operation)) {
+      throw const RemoteFailure('operation_not_allowed');
+    }
+    final generation = _generation;
+    try { return await request(operation, instance: instance); }
+    on RemoteFailure catch (error) {
+      if (error.code != 'unauthorized' || generation != _generation) { rethrow; }
+      return await request(operation, instance: instance);
+    }
+  }
+  Future<WebSocket> openDesktop() => _interactiveSocket('/remote/v1/desktop');
+  Future<WebSocket> _interactiveSocket(String path) async {
+    final generation = _generation;
+    try { await request('session.ping'); }
+    on RemoteFailure catch (error) {
+      if (error.code != 'unauthorized' || generation != _generation) { rethrow; }
+      // Reauthenticate a read-only connection setup, never retry an input/action.
+      await request('session.ping');
+    }
+    if (generation != _generation || _session == null) { throw const RemoteFailure('connection_lost'); }
+    final socket = await WebSocket.connect(host.origin.replace(scheme: 'wss', path: path).toString(),
+      headers: {HttpHeaders.authorizationHeader: 'Bearer $_session'},
+      compression: CompressionOptions.compressionOff).timeout(const Duration(seconds: 8));
+    if (generation != _generation) { socket.close(); throw const RemoteFailure('connection_lost'); }
+    return socket;
+  }
+  Future<WebSocket> openGamepad() => _interactiveSocket('/remote/v1/gamepad');
   void disconnect() { _generation++; _session = null; _sequence = 0; transport.cancel(); }
 }
