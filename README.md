@@ -1,15 +1,11 @@
-# Sentinel Remote Android gamepad preview
+# Sentinel Remote — desktop and rescue preview 0.3.0
 
-Private Android status/rescue companion with an experimental gamepad screen. This branch requires the matched Sentinel Remote Windows 0.2.3 candidate.
+An Android companion for privately viewing and manually controlling the PC desktop, followed by a small in-game rescue gamepad. The primary desktop is available with FFXIV closed: open apps/files through touch, operate XIVLauncher, type required login/OTP text and select the intended character yourself. The gamepad remains bound to an enrolled opted-in character, with exactly one FFXIV process.
 
-See the [PC setup and supervised field checklist](https://github.com/MarshalTitan/SentinelRelay/blob/feature/sentinel-remote-gamepad-integration/remote/docs/GAMEPAD_PREVIEW.md).
+See [PC setup and field checklist](https://github.com/MarshalTitan/SentinelRelay/blob/feature/sentinel-remote-gamepad-integration/remote/docs/DESKTOP_MIRROR.md). Use Windows **0.3.0**, select this paired control phone and **Allow selected phone desktop**. Gamepad permission is separate and still requires Prepare/Allow on the PC.
 
-The preview installs as **Sentinel Remote Preview** alongside the existing app and requires its own local pairing invitation. No existing Android pairing is deleted. Keep the original app installed. CI debug signing is not stable across rebuilds; production update signing remains outstanding.
+Desktop supports tap, double-tap, long-press right-click, pinch zoom/pan, transient Unicode typing and Start/Tab/Enter/Escape/Backspace/scroll keys. The gamepad icon combines the mirrored screen with the existing sticks/D-pad/ABXY/triggers. Portrait places the view above controls; landscape uses side-by-side panes. Input is never retried automatically; view reconnect clears old actions and cannot reacquire gamepad input. Phone backgrounding stops capture/input and clears the typing dialog.
 
-Input replies only to fresh server challenges. Complete state, one active socket, no automatic reacquisition, and neutral local touch state on interruption/page exit are mandatory. The PC host enforces live authorization, a separate local per-phone opt-in, exactly one FFXIV process, matching identity/epoch, an active unlocked Windows desktop and independent release watchdogs.
+This is a recovery preview at up to 3 FPS/1280×720/320 KiB JPEG. One view per host; at most one capture and one action in flight. Frame IDs, monotonic freshness and socket sequence bind manual actions to a recent displayed frame. No disk recording, clipboard sync, file API, credential database or shell endpoint. Windows must be awake and unlocked; monitor-off/GPU/DPI behavior and the real launcher/login/game handoff still require field acceptance.
 
-**Open XIVLauncher** is a separate fixed action available while the game is closed. Select the installed XIVLauncher.exe once in the PC GUI and allow the selected phone recovery. The phone cannot provide a path or arguments. **Restore game window** targets the selected saved process with lifetime/window ownership checks. Both require a control grant and live authenticated session; they do not require an active gamepad lease. Windows must remain awake and unlocked; the monitor can be off.
-
-The new PC host also permits minimized/background in-game control. Enable **Keep gamepad enabled when client is inactive** in FFXIV's Gamepad Settings. This does not authorize unidentified lobby control.
-
-This is not yet end-to-end login recovery: launcher/lobby viewing, manual authentication/MFA interaction, character-selection controls and confirmed logout remain unimplemented. Sentinel does not store or submit login credentials. XIVLauncher retains its own configured login behavior. Stable preview signing is still outstanding: if Android rejects an in-place preview APK update, uninstall only **Sentinel Remote Preview**, install this APK and create a new pairing invitation. The original status/rescue app can remain installed.
+The separate **Sentinel Remote Preview** app ID preserves the original status/rescue app. CI debug signing remains temporary: if Android rejects an in-place preview update, uninstall only Preview, install this APK and create a new local pairing. Stable signing and iPhone distribution remain separate work.

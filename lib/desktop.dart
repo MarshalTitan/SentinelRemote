@@ -119,8 +119,7 @@ class DesktopController extends ChangeNotifier {
     if (!fresh || actionPending || socket == null) { return; }
     final epoch = generation; actionPending = true;
     try {
-      await request(kind, {'frameId': frameId, if (x != null) 'x': x, if (y != null) 'y': y,
-        if (key != null) 'key': key, if (text != null) 'text': text});
+      await request(kind, {'frameId': frameId, 'x': ?x, 'y': ?y, 'key': ?key, 'text': ?text});
     } catch (_) {
       if (epoch == generation && !disposed) { disconnect('Input could not be confirmed. It was not retried. Reconnect and check the screen.'); }
     } finally { if (epoch == generation) { actionPending = false; } }
@@ -129,9 +128,15 @@ class DesktopController extends ChangeNotifier {
   void dispose() { wanted = false; disconnect(''); disposed = true; ready.dispose(); clock.stop(); super.dispose(); }
 }
 
-class DesktopSurface extends StatelessWidget {
+class DesktopSurface extends StatefulWidget {
   final DesktopController controller;
   const DesktopSurface({super.key, required this.controller});
+  @override
+  State<DesktopSurface> createState() => _DesktopSurfaceState();
+}
+class _DesktopSurfaceState extends State<DesktopSurface> {
+  Offset? doublePoint;
+  DesktopController get controller => widget.controller;
   @override
   Widget build(BuildContext context) => ListenableBuilder(listenable: controller, builder: (context, _) {
     final bytes = controller.jpeg;
@@ -140,10 +145,9 @@ class DesktopSurface extends StatelessWidget {
       aspectRatio: controller.width / controller.height,
       child: LayoutBuilder(builder: (context, area) {
         void click(String kind, Offset point) {
-          controller.act(kind, x: (point.dx / area.maxWidth).clamp(0.0, 1.0),
+          controller.act(kind, x: (point.dx / area.maxWidth).clamp(0.0, 1.0).toDouble(),
             y: (point.dy / area.maxHeight).clamp(0.0, 1.0));
         }
-        Offset? doublePoint;
         return GestureDetector(
           onTapUp: (event) => click('tap', event.localPosition),
           onDoubleTapDown: (event) { doublePoint = event.localPosition; },
@@ -153,7 +157,7 @@ class DesktopSurface extends StatelessWidget {
             errorBuilder: (_, _, _) => const Center(child: Text('Desktop image could not be displayed.'))),
         );
       }),
-    ))));
+    )));
   });
 }
 

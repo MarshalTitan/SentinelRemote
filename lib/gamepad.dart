@@ -44,7 +44,10 @@ class _GamepadPageState extends State<GamepadPage> with WidgetsBindingObserver {
   int lastPollMs = 0;
   String message = 'Allow this phone’s gamepad on the PC, then start here. PC 0.2.3 supports minimized play when FFXIV’s inactive-client gamepad setting is enabled.';
   @override
-  void initState() { super.initState(); WidgetsBinding.instance.addObserver(this); widget.viewReady?.addListener(viewChanged); }
+  void initState() {
+    super.initState(); WidgetsBinding.instance.addObserver(this); widget.viewReady?.addListener(viewChanged);
+    if (widget.liveView != null) { message = 'Start gamepad after your enrolled character connects.'; }
+  }
   void viewChanged() {
     if (widget.viewReady?.value == false && (active || connecting)) { stop('Desktop view stopped. Controls released.'); }
   }
@@ -135,9 +138,7 @@ class _GamepadPageState extends State<GamepadPage> with WidgetsBindingObserver {
     child: Scaffold(
       appBar: AppBar(title: Text(widget.character, overflow: TextOverflow.ellipsis)),
       body: SafeArea(child: Column(children: [
-        Padding(padding: const EdgeInsets.all(8), child: Text(widget.liveView == null ? message :
-          active ? 'Gamepad active · desktop remains visible' : 'Start gamepad after your character is connected.',
-          maxLines: 3, textAlign: TextAlign.center)),
+        Padding(padding: const EdgeInsets.all(8), child: Text(message, maxLines: 3, textAlign: TextAlign.center)),
         Wrap(spacing: 12, children: [
           FilledButton(onPressed: active || connecting ? null : start, child: const Text('Start gamepad')),
           OutlinedButton(onPressed: () => stop('Controls released · tap Start to begin a new session.'), child: const Text('Stop gamepad')),

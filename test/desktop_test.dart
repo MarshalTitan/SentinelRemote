@@ -109,10 +109,12 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink()); desktop.dispose();
   });
   testWidgets('typing dialog clears on phone background', (tester) async {
-    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: DesktopTyping())));
+    await tester.pumpWidget(MaterialApp(home: Builder(builder: (context) => Scaffold(body: TextButton(
+      onPressed: () => showDialog<void>(context: context, builder: (_) => const DesktopTyping()), child: const Text('Type'))))));
+    await tester.tap(find.text('Type')); await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'test-only-secret');
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive); await tester.pump();
-    expect(tester.widget<TextField>(find.byType(TextField)).controller!.text, isEmpty);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive); await tester.pumpAndSettle();
+    expect(find.byType(TextField), findsNothing);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed); await tester.pump();
     await tester.pumpWidget(const SizedBox.shrink());
   });
