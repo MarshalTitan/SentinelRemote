@@ -102,7 +102,7 @@ class _RemoteHomeState extends State<RemoteHome> with WidgetsBindingObserver {
     final instance = operation == 'game.restore' ? _selected : null;
     if (operation == 'game.restore' && instance == null) return;
     await client.request('session.ping');
-    if (!_current(epoch)) return;
+    if (!_current(epoch)) { return; }
     await client.request(operation, instance: instance);
     if (_current(epoch)) setState(() {
       _message = operation == 'launcher.open'
