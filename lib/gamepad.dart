@@ -19,7 +19,7 @@ class PadState {
     return {...poll, 'leftX': lx, 'leftY': ly, 'rightX': rx, 'rightY': ry,
       'leftTrigger': held.values.contains(-1) ? 1.0 : 0.0,
       'rightTrigger': held.values.contains(-2) ? 1.0 : 0.0,
-      'buttons': held.values.where((bit) => bit > 0).fold(0, (a, b) => a | b)};
+      'buttons': buttons};
   }
 }
 
@@ -152,7 +152,7 @@ class _TouchStickState extends State<TouchStick> {
     widget.onChanged(delta.dx, -delta.dy);
   }
   @override
-  Widget build(BuildContext context) => Column(children: [
+  Widget build(BuildContext context) => Column(mainAxisSize: MainAxisSize.min, children: [
     Text(widget.label), const SizedBox(height: 8),
     Listener(behavior: HitTestBehavior.opaque,
       onPointerDown: (event) { if (!widget.enabled || pointer != null) return; pointer = event.pointer; update(event.localPosition); },
