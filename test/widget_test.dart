@@ -10,7 +10,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Sentinel Remote'), findsOneWidget);
     expect(find.text('Pair a PC to get started.'), findsOneWidget);
-    expect(find.textContaining('Wrothy'), findsNothing);
+    expect(find.text('Screenshot'), findsNothing);
+    expect(find.text('Skip + keep queue'), findsNothing);
+    expect(find.text('Stop + reset'), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 }
