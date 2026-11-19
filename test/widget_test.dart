@@ -12,7 +12,15 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Sentinel Remote'), findsOneWidget);
     expect(find.text('Pair a PC to get started.'), findsOneWidget);
-    expect(find.textContaining('Wrothy'), findsNothing);
+    expect(find.byType(ListTile), findsNothing);
+    for (final label in ['Screenshot', 'Skip + keep queue', 'Stop + reset']) {
+      final button = find.ancestor(
+        of: find.text(label),
+        matching: find.byWidgetPredicate((widget) => widget is ButtonStyleButton),
+      );
+      expect(button, findsOneWidget);
+      expect(tester.widget<ButtonStyleButton>(button).onPressed, isNull);
+    }
     await tester.pumpWidget(const SizedBox.shrink());
   });
   testWidgets('last selected PC reconnects automatically on app startup', (tester) async {
